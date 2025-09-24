@@ -13,7 +13,7 @@ function getConfig(audioUrl, fileId) {
 
     // Set language hints when possible to significantly improve accuracy.
     // See: soniox.com/docs/stt/concepts/language-hints
-    language_hints: ["en", "es"],
+    language_hints: ["en"],
 
     // Enable language identification. Each token will include a "language" field.
     // See: soniox.com/docs/stt/concepts/language-identification
@@ -27,9 +27,7 @@ function getConfig(audioUrl, fileId) {
     // Context is a string and can include words, phrases, sentences, or summaries (limit: 10K chars).
     // See: soniox.com/docs/stt/concepts/context
     context: `
-      Celebrex, Zyrtec, Xanax, Prilosec, Amoxicillin Clavulanate Potassium
-      The customer, Maria Lopez, contacted BrightWay Insurance to update her auto policy
-      after purchasing a new vehicle.
+      
     `,
 
     // Optional identifier to track this request (client-defined).
@@ -58,7 +56,7 @@ async function apiFetch(endpoint, { method = "GET", body, headers = {} } = {}) {
     throw new Error(
       "Missing SONIOX_API_KEY.\n" +
         "1. Get your API key at https://console.soniox.com\n" +
-        "2. Run: export SONIOX_API_KEY=<YOUR_API_KEY>",
+        "2. Run: export SONIOX_API_KEY=<YOUR_API_KEY>"
     );
   }
 
@@ -160,8 +158,8 @@ async function deleteAllTranscriptions() {
     // Delete only transcriptions with completed or error status.
     transcriptions = transcriptions.concat(
       res.transcriptions.filter(
-        (t) => t.status === "completed" || t.status === "error",
-      ),
+        (t) => t.status === "completed" || t.status === "error"
+      )
     );
     cursor = res.next_page_cursor;
     if (!cursor) break;
@@ -175,7 +173,9 @@ async function deleteAllTranscriptions() {
   console.log(`Deleting ${transcriptions.length} transcriptions...`);
   for (let i = 0; i < transcriptions.length; i++) {
     console.log(
-      `Deleting transcription: ${transcriptions[i].id} (${i + 1}/${transcriptions.length})`,
+      `Deleting transcription: ${transcriptions[i].id} (${i + 1}/${
+        transcriptions.length
+      })`
     );
     await deleteTranscription(transcriptions[i].id);
   }
@@ -215,29 +215,49 @@ function renderTokens(finalTokens) {
 
 async function transcribeFile(audioUrl, audioPath) {
   let fileId = null;
-
+  let startTime = Date.now();
   if (!audioUrl && !audioPath) {
     throw new Error(
-      "Missing audio: audio_url or audio_path must be specified.",
+      "Missing audio: audio_url or audio_path must be specified."
     );
   }
   if (audioPath) {
     fileId = await uploadAudio(audioPath);
   }
-
+  let endTime = Date.now();
+  console.log(`Upload time: ${((endTime - startTime) / 1000).toFixed(1)}s`);
+  startTime = endTime;
   const config = getConfig(audioUrl, fileId);
   const transcriptionId = await createTranscription(config);
+  endTime = Date.now();
+  console.log(
+    `createTranscription time: ${((endTime - startTime) / 1000).toFixed(1)}s`
+  );
+  startTime = endTime;
   await waitUntilCompleted(transcriptionId);
-
+  endTime = Date.now();
+  console.log(
+    `waitUntilCompleted time: ${((endTime - startTime) / 1000).toFixed(1)}s`
+  );
+  startTime = endTime;
   const result = await getTranscription(transcriptionId);
+  endTime = Date.now();
+  console.log(
+    `getTranscription time: ${((endTime - startTime) / 1000).toFixed(1)}s`
+  );
   const text = renderTokens(result.tokens);
   console.log(text);
-
+  startTime = endTime;
   await deleteTranscription(transcriptionId);
   if (fileId) await deleteFile(fileId);
+  endTime = Date.now();
+  console.log(
+    `deleteTranscription time: ${((endTime - startTime) / 1000).toFixed(1)}s`
+  );
 }
 
 async function main() {
+  const startTime = Date.now();
   const { values: argv } = parseArgs({
     options: {
       audio_url: {
@@ -270,6 +290,8 @@ async function main() {
   }
 
   await transcribeFile(argv.audio_url, argv.audio_path);
+  const endTime = Date.now();
+  console.log(`Elapsed time: ${((endTime - startTime) / 1000).toFixed(1)}s`);
 }
 
 main().catch((err) => {
